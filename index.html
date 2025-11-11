@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Пазл: Ракета</title>
+<style>
+  :root{
+    --w: 720px;   /* ширина поля */
+    --h: 480px;   /* высота поля 3:2 */
+  }
+  body{font-family: system-ui, Arial, sans-serif;background:#eaf2ff;margin:0;display:flex;flex-direction:column;align-items:center;min-height:100vh;}
+  header{padding:18px 16px 6px}
+  h1{margin:0;font-size:22px}
+  #menu{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:center;padding:12px}
+  select,button,label{font-size:16px}
+  button{background:#4f46e5;color:#fff;border:0;padding:10px 14px;border-radius:10px;cursor:pointer;box-shadow:0 3px 0 #2f2ac4}
+  button:active{transform:translateY(1px);box-shadow:0 2px 0 #2f2ac4}
+  #wrap{position:relative;width:min(var(--w), 94vw);aspect-ratio:3/2;max-height:70vh}
+  #puzzle{position:absolute;inset:0;border-radius:12px;overflow:hidden;border:3px solid #1f2937;background:#cdd7ff}
+  #puzzle.solved{outline:4px solid #22c55e}
+  .piece{position:absolute;box-sizing:border-box;border:1px solid #0f172a;background-repeat:no-repeat;background-size:100% 100%;transition:box-shadow .15s, transform .1s}
+  .piece.focus{box-shadow:0 0 0 3px #22c55e inset, 0 8px 18px rgba(0,0,0,.2);z-index:5}
+  #ghost{position:absolute;inset:0;background-size:100% 100%;opacity:.15;pointer-events:none;border-radius:10px}
+  #msg{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.35);backdrop-filter:blur(1px);border-radius:10px}
+  #msg.show{display:flex}
+  #msg .box{background:#fff;padding:18px 22px;border-radius:14px;font-size:22px;color:#111827;box-shadow:0 20px 40px rgba(0,0,0,.2)}
+  #footer{opacity:.7;font-size:13px;padding:8px 0 18px}
+</style>
+</head>
+<body>
+  <header>
+    <h1>Пазл — собери ракету</h1>
+  </header>
+
+  <div id="menu">
+    <label>Сложность:
+      <select id="size">
+        <option value="3">Лёгкий (9)</option>
+        <option value="4">Сложный (16)</option>
+      </select>
+    </label>
+    <button id="start">Старт / Перемешать</button>
+    <label><input type="checkbox" id="hint" checked> Подсказка</label>
+  </div>
+
+  <div id="wrap">
+    <div id="ghost"></div>
+    <div id="puzzle" aria-label="Поле пазла" role="grid"></div>
+    <div id="msg"><div class="box">Ура! Ракета собрана 🎉</div></div>
+  </div>
+
+  <div id="footer">Подготовьте файл изображения <code>rocket.png</code> рядом с этой страницей (можно переименовать вашу картинку). Размер поля меняется адаптивно.</div>
+
+<script>
+(() => {
+  const IMG_URL = 'rocket.png'; // Поместите сюда вашу картинку (из сообщения) как rocket.png
+
+  const wrap = document.getElementById('wrap');
+  const puzzle = document.getElementById('puzzle');
+  const ghost = document.getElementById('ghost');
+  const sizeSel = document.getElementById('size');
+  const startBtn = document.getElementById('start');
+  const hintChk = document.getElementById('hint');
+  const msg = document.getElementById('msg');
+
+  ghost.style.backgroundImage = `url(${IMG_URL})`;
+
+  let N = 3;              // кол-во фрагментов по стороне
+  let pieces = [];        // элементы DOM
+  let order = [];         // текущий порядок (индексы)
+  let first = null;       // выбранная для обмена
+
+  function createPieces(){
+    puzzle.innerHTML = '';
+    pieces = [];
+    order = [];
+    const W = puzzle.clientWidth;
+    const H = puzzle.clientHeight;
+    const w = W / N;
+    const h = H / N;
+
+    for(let r=0; r<N; r++){
+      for(let c=0; c<N; c++){
+        const i = r*N + c;  // правильный индекс
+        const el = document.createElement('div');
+        el.className = 'piece';
+        el.style.width = `${100/N}%`;
+        el.style.height = `${100/N}%`;
+        el.dataset.correct = i;
+        // каждый кусок использует всё изображение, а окно обрезает правильную часть через background-position
+        el.style.backgroundImage = `url(${IMG_URL})`;
+        el.style.backgroundSize = `${N*100}% ${N*100}%`;
+        el.style.backgroundPosition = `${(c/(N-1))*100}% ${(r/(N-1))*100}%`;
+        puzzle.appendChild(el);
+        pieces.push(el);
+        order.push(i);
+      }
+    }
+  }
+
+  function layout(){
+    const W = puzzle.clientWidth;
+    const H = puzzle.clientHeight;
+    const w = W / N;
+    const h = H / N;
+    for(let i=0;i<pieces.length;i++){
+      const idx = order[i]; // где стоит фрагмент i? Нет — наоборот: i‑ая ячейка содержит кусок с индексом order[i]
+      const r = Math.floor(i / N);
+      const c = i % N;
+      const el = pieces[idx];
+      el.style.left = `${(c*100)/N}%`;
+      el.style.top  = `${(r*100)/N}%`;
+    }
+  }
+
+  function shuffle(){
+    // перемешивание Фишера‑Йетса
+    for(let i=order.length-1;i>0;i--){
+      const j = Math.floor(Math.random()*(i+1));
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+    // избегаем стартовой решённой позиции
+    if (isSolved()) shuffle();
+    layout();
+  }
+
+  function isSolved(){
+    for(let i=0;i<order.length;i++) if(order[i]!==i) return false;
+    return true;
+  }
+
+  function showMessage(){
+    msg.classList.add('show');
+    setTimeout(()=> msg.classList.remove('show'), 2200);
+  }
+
+  function start(){
+    N = parseInt(sizeSel.value,10);
+    first = null;
+    createPieces();
+    const rect = puzzle.getBoundingClientRect();
+    shuffle();
+  }
+
+  // клики: выбираем ячейки по координате клика
+  function cellFromEvent(e){
+    const rect = puzzle.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const c = Math.min(N-1, Math.max(0, Math.floor(x / rect.width * N)));
+    const r = Math.min(N-1, Math.max(0, Math.floor(y / rect.height * N)));
+    return r*N + c; // индекс ячейки
+  }
+
+  puzzle.addEventListener('click', (e)=>{
+    if(!pieces.length) return;
+    const cell = cellFromEvent(e);
+    if(first==null){
+      first = cell;
+      // подсветка выбранного фрагмента
+      const pieceIdx = order[cell];
+      pieces[pieceIdx].classList.add('focus');
+    }else if(first === cell){
+      pieces[order[first]].classList.remove('focus');
+      first = null;
+    }else{
+      // обмен местами двух ячеек
+      pieces[order[first]].classList.remove('focus');
+      [order[first], order[cell]] = [order[cell], order[first]];
+      layout();
+      first = null;
+      if(isSolved()){
+        puzzle.classList.add('solved');
+        showMessage();
+      } else {
+        puzzle.classList.remove('solved');
+      }
+    }
+  });
+
+  // перетаскивание (для мыши/тача) — тянем ячейку и меняем с той, над которой отпустили
+  let dragCell = null;
+  puzzle.addEventListener('mousedown', e=>{ dragCell = cellFromEvent(e); pieces[order[dragCell]].classList.add('focus'); });
+  window.addEventListener('mouseup', e=>{
+    if(dragCell==null) return;
+    const over = (e.target.closest('#puzzle')) ? cellFromEvent(e) : dragCell;
+    pieces[order[dragCell]].classList.remove('focus');
+    if(over !== dragCell){
+      [order[dragCell], order[over]] = [order[over], order[dragCell]];
+      layout();
+      if(isSolved()){ puzzle.classList.add('solved'); showMessage(); }
+      else puzzle.classList.remove('solved');
+    }
+    dragCell=null;
+  });
+
+  // тач‑поддержка
+  puzzle.addEventListener('touchstart', e=>{ dragCell = cellFromEvent(e.touches[0]); pieces[order[dragCell]].classList.add('focus'); },{passive:true});
+  puzzle.addEventListener('touchend', e=>{ if(dragCell!=null){ pieces[order[dragCell]].classList.remove('focus'); dragCell=null; } });
+  puzzle.addEventListener('touchmove', e=>{ e.preventDefault(); },{passive:false});
+
+  // кнопки/опции
+  startBtn.addEventListener('click', start);
+  hintChk.addEventListener('change', ()=>{ ghost.style.display = hintChk.checked ? 'block' : 'none'; });
+
+  // начальный запуск
+  window.addEventListener('resize', ()=> layout());
+  createPieces();
+  shuffle();
+})();
+</script>
+</body>
+</html>
