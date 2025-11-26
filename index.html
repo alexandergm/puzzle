@@ -123,30 +123,36 @@
     const pw = W / N;
     const ph = H / N;
 
-    // Раскладываем вокруг поля
+    // Раскладываем вокруг поля (Без верхней зоны)
     const margin = 20;
     const gap = 10;
 
     let coords = [];
 
-    // Сверху
+    // СНИЗУ
     for(let i=0;i<N;i++){
-      coords.push({x: wrap.offsetLeft + i*(pw+gap), y: wrap.offsetTop - ph - margin});
-    }
-    // Снизу
-    for(let i=0;i<N;i++){
-      coords.push({x: wrap.offsetLeft + i*(pw+gap), y: wrap.offsetTop + H + margin});
-    }
-    // Слева
-    for(let i=0;i<N;i++){
-      coords.push({x: wrap.offsetLeft - pw - margin, y: wrap.offsetTop + i*(ph+gap)});
-    }
-    // Справа
-    for(let i=0;i<N;i++){
-      coords.push({x: wrap.offsetLeft + W + margin, y: wrap.offsetTop + i*(ph+gap)});
+      coords.push({
+        x: wrap.offsetLeft + i*(pw+gap),
+        y: wrap.offsetTop + H + margin
+      });
     }
 
-    // Перемешаем координаты
+    // СЛЕВА
+    for(let i=0;i<N;i++){
+      coords.push({
+        x: wrap.offsetLeft - pw - margin,
+        y: wrap.offsetTop + i*(ph+gap)
+      });
+    }
+
+    // СПРАВА
+    for(let i=0;i<N;i++){
+      coords.push({
+        x: wrap.offsetLeft + W + margin,
+        y: wrap.offsetTop + i*(ph+gap)
+      });
+    }
+
     coords.sort(()=>Math.random()-0.5);
 
     let posIndex = 0;
@@ -154,8 +160,8 @@
     // создаём пазл-кусочки
     for(let r=0; r<N; r++){
       for(let c=0; c<N; c++){
-
         const idx = r*N + c;
+
         const el = document.createElement("div");
         el.className = "piece";
         el.dataset.idx = idx;
@@ -182,7 +188,7 @@
   }
 
   // =============================
-  //           DRAG & DROP
+  //           DRAG
   // =============================
   function enableDrag(el){
     let dragging = false;
@@ -193,7 +199,6 @@
 
       dragging = true;
       const rect = el.getBoundingClientRect();
-
       ox = p.clientX - rect.left;
       oy = p.clientY - rect.top;
 
@@ -211,12 +216,11 @@
       e.preventDefault();
 
       const p = (e.touches ? e.touches[0] : e);
-
       const x = p.clientX - ox;
       const y = p.clientY - oy;
 
       el.style.left = x + "px";
-      el.style.top  = y + "px";
+      el.style.top = y + "px";
     }
 
     function up(){
@@ -240,7 +244,7 @@
   }
 
   // =============================
-  //       ПРИЛИПАНИЕ
+  //        ПРИЛИПАНИЕ
   // =============================
   function snap(el){
     const correctX = parseFloat(el.dataset.correctX);
@@ -269,7 +273,7 @@
   }
 
   // =============================
-  //     ПРОВЕРКА СОБРАННОСТИ
+  //      ПРОВЕРКА СОБРАНОСТИ
   // =============================
   function checkComplete(){
     let ok = 0;
@@ -296,6 +300,5 @@
 
 })();
 </script>
-
 </body>
 </html>
