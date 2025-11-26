@@ -26,53 +26,52 @@
     align-items:center;
   }
 
-  select,button{
-    font-size:16px;
-    padding:6px 12px;
-  }
-
-  button{
-    background:#4f46e5;
-    color:#fff;
-    border:0;
-    border-radius:6px;
-    cursor:pointer;
-  }
-
   #wrap{
     position:relative;
     width:90vw;
-    max-width:720px;
+    max-width:700px;
     aspect-ratio:3/2;
     border:3px solid #1f2937;
     border-radius:12px;
-    overflow:hidden;
     background:#cdd7ff;
-    touch-action:none;
+    overflow:hidden;
   }
 
   #target{
     position:absolute;
     inset:0;
     background-size:100% 100%;
-    opacity:0.14;
+    opacity:0.12;
     pointer-events:none;
   }
 
-  .piece{
-    position:absolute;
-    background-size:300% 300%;
-    cursor:grab;
-    border:1px solid #222;
-    border-radius:6px;
-    box-shadow:0 4px 10px rgba(0,0,0,.2);
-    transition:box-shadow .2s;
+  /* ПАНЕЛЬ С ДЕТАЛЯМИ */
+  #tray{
+    margin-top:15px;
+    width:90vw;
+    max-width:700px;
+    min-height:120px;
+    border:2px dashed #888;
+    border-radius:12px;
+    background:white;
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    padding:10px;
+    justify-content:flex-start;
   }
 
-  .locked{
-    cursor:default;
-    box-shadow:none !important;
-    border:2px solid #22c55e;
+  .piece{
+    width:100px;
+    height:100px;
+    background-size:300% 300%;
+    border:1px solid #222;
+    border-radius:6px;
+    cursor:grab;
+    box-shadow:0 4px 10px rgba(0,0,0,.2);
+    position:absolute;
+    touch-action:none;
+    transition:box-shadow .2s;
   }
 
   #msg{
@@ -91,9 +90,9 @@
 <div id="menu">
   <label>Сложность:
     <select id="lvl">
-      <option value="3">Лёгко (3×3)</option>
-      <option value="4">Средне (4×4)</option>
-      <option value="5">Сложно (5×5)</option>
+      <option value="3">3×3</option>
+      <option value="4">4×4</option>
+      <option value="5">5×5</option>
     </select>
   </label>
 
@@ -104,16 +103,19 @@
   <div id="target"></div>
 </div>
 
+<div id="tray"></div>
+
 <div id="msg">Ура! Ракета собрана 🎉</div>
 
 <script>
 (() => {
 
-  const IMG = "rocket.png";  
-  const SNAP = 30;           // радиус прилипания
+  const IMG = "rocket.png";
+  const SNAP = 30;               // радиус прилипания
 
   const wrap = document.getElementById("wrap");
   const target = document.getElementById("target");
+  const tray = document.getElementById("tray");
   const msg = document.getElementById("msg");
   const lvlSel = document.getElementById("lvl");
   const restartBtn = document.getElementById("restart");
@@ -121,7 +123,6 @@
   target.style.backgroundImage = `url(${IMG})`;
 
   let pieces = [];
-  let placed = 0;
   let N = 3;
 
   restartBtn.onclick = init;
@@ -130,8 +131,8 @@
   function init(){
     msg.style.display = "none";
     pieces.forEach(p=>p.remove());
+    tray.innerHTML = "";
     pieces = [];
-    placed = 0;
 
     N = parseInt(lvlSel.value,10);
 
@@ -140,11 +141,7 @@
     const pw = W / N;
     const ph = H / N;
 
-    const usedPositions = [];
-
-    // ======================
-    //  СОЗДАЁМ ВСЕ КУСОЧКИ
-    // ======================
+    // Создание фрагментов
     for(let r=0; r<N; r++){
       for(let c=0; c<N; c++){
         const idx = r*N + c;
@@ -152,73 +149,55 @@
         const el = document.createElement("div");
         el.className = "piece";
         el.dataset.idx = idx;
+
         el.dataset.correctX = c * pw;
         el.dataset.correctY = r * ph;
 
         el.style.width = pw + "px";
         el.style.height = ph + "px";
+
         el.style.backgroundImage = `url(${IMG})`;
         el.style.backgroundSize = `${N*100}% ${N*100}%`;
         el.style.backgroundPosition = `${(c/(N-1))*100}% ${(r/(N-1))*100}%`;
 
-        // ----------------------------
-        //  СЛУЧАЙНОЕ РАЗМЕЩЕНИЕ БЕЗ ПЕРЕСЕЧЕНИЯ
-        // ----------------------------
-        let x, y, tries = 0;
+        // Стартовое положение: кладём в tray
+        placeInTray(el);
 
-        do {
-          x = Math.random() * (W - pw);
-          y = Math.random() * (H - ph);
-
-          var overlap = usedPositions.some(p => {
-            return !(x+pw < p.x || x > p.x+pw || y+ph < p.y || y > p.y+ph);
-          });
-
-          tries++;
-          if(tries > 300) break; // защита от бесконечного цикла
-        } while(overlap);
-
-        usedPositions.push({x,y});
-
-        el.style.left = x + "px";
-        el.style.top = y + "px";
-
-        wrap.appendChild(el);
         pieces.push(el);
-
         enableDrag(el);
+
+        document.body.appendChild(el); // абсолютный слой
       }
     }
   }
 
+  // Функция размещения кусочков в tray
+  function placeInTray(el){
+    const trayRect = tray.getBoundingClientRect();
+    el.style.left = trayRect.left + 10 + Math.random()*100 + "px";
+    el.style.top  = trayRect.top + 10 + Math.random()*40 + "px";
+  }
 
-  // ===========================================
-  //                 ДРАГ
-  // ===========================================
-
+  // --- DRAG SYSTEM ---
   function enableDrag(el){
     let dragging = false;
-    let ox, oy;
+    let ox=0, oy=0;
 
     function down(e){
-      if(el.classList.contains("locked")) return;
+      const p = (e.touches ? e.touches[0] : e);
 
       dragging = true;
-
-      const p = (e.touches ? e.touches[0] : e);
       const rect = el.getBoundingClientRect();
-      const wrect = wrap.getBoundingClientRect();
 
       ox = p.clientX - rect.left;
       oy = p.clientY - rect.top;
 
-      el.style.transition = "none";
-      el.style.zIndex = 20;
+      el.style.zIndex = 200;
       el.style.boxShadow = "0 0 0 3px #22c55e inset, 0 10px 20px rgba(0,0,0,.3)";
+      el.dataset.locked = "0"; // снимаем фиксацию
 
       window.addEventListener("mousemove", move);
       window.addEventListener("mouseup", up);
-
       window.addEventListener("touchmove", move, {passive:false});
       window.addEventListener("touchend", up);
     }
@@ -226,15 +205,13 @@
     function move(e){
       if(!dragging) return;
       e.preventDefault();
-
+      
       const p = (e.touches ? e.touches[0] : e);
-      const wrect = wrap.getBoundingClientRect();
-
-      const x = p.clientX - wrect.left - ox;
-      const y = p.clientY - wrect.top - oy;
+      const x = p.clientX - ox;
+      const y = p.clientY - oy;
 
       el.style.left = x + "px";
-      el.style.top = y + "px";
+      el.style.top  = y + "px";
     }
 
     function up(){
@@ -256,28 +233,49 @@
     el.addEventListener("touchstart", down, {passive:true});
   }
 
-
-  // ===========================================
-  //              ПРИЛИПАНИЕ
-  // ===========================================
-
+  // --------------------------------
+  //       ПРИЛИПАНИЕ (но НЕ фикс)
+  // --------------------------------
   function snap(el){
     const correctX = parseFloat(el.dataset.correctX);
     const correctY = parseFloat(el.dataset.correctY);
 
+    const wrapRect = wrap.getBoundingClientRect();
     const x = parseFloat(el.style.left);
     const y = parseFloat(el.style.top);
 
-    if(Math.abs(x - correctX) < SNAP && Math.abs(y - correctY) < SNAP){
-      el.style.left = correctX + "px";
-      el.style.top = correctY + "px";
+    const dx = Math.abs(x - (wrapRect.left + correctX));
+    const dy = Math.abs(y - (wrapRect.top + correctY));
 
-      el.classList.add("locked");
-      placed++;
+    // внутри поля?
+    const inside =
+      x >= wrapRect.left &&
+      y >= wrapRect.top &&
+      x <= wrapRect.right &&
+      y <= wrapRect.bottom;
 
-      if(placed === N*N){
-        msg.style.display = "block";
+    if(inside && dx < SNAP && dy < SNAP){
+      el.style.left = wrapRect.left + correctX + "px";
+      el.style.top  = wrapRect.top  + correctY + "px";
+      el.dataset.locked = "1";
+    }
+
+    checkComplete();
+  }
+
+  // Проверка сборки
+  function checkComplete(){
+    let ok = 0;
+    const wrapRect = wrap.getBoundingClientRect();
+
+    for(const el of pieces){
+      if(el.dataset.locked === "1"){
+        ok++;
       }
+    }
+
+    if(ok === pieces.length){
+      msg.style.display = "block";
     }
   }
 
@@ -285,6 +283,5 @@
 
 })();
 </script>
-
 </body>
 </html>
